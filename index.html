@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Una cosa nueva cada día</title>
+<style>
+:root {
+  --bg: #f4f1eb; --card: #fffdf9; --ink: #292923; --muted: #77766e;
+  --accent: #8b7655; --line: #e8e1d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#20211f; --card:#2b2d29; --ink:#f2f0e9; --muted:#b9b6ac; --accent:#d2b98f; --line:#41433d; }
+}
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:transparent; color:var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.card { max-width:720px; margin:0 auto; padding:22px 24px 18px; background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:0 8px 28px rgba(30,25,15,.06); }
+.eyebrow { display:flex; align-items:center; gap:8px; color:var(--accent); font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--accent); }
+h1 { margin:12px 0 8px; font-size:clamp(20px,3vw,27px); line-height:1.2; letter-spacing:-.03em; }
+#description { margin:0 0 14px; color:var(--muted); font-size:13px; }
+#fact { margin:0; font-size:clamp(15px,2.1vw,18px); line-height:1.65; }
+.footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:20px; padding-top:13px; border-top:1px solid var(--line); color:var(--muted); font-size:11px; }
+a { color:var(--accent); text-decoration:none; font-weight:650; }
+a:hover { text-decoration:underline; }
+button { border:1px solid var(--line); border-radius:999px; padding:8px 12px; background:transparent; color:var(--ink); font:inherit; font-size:11px; cursor:pointer; }
+button:hover { border-color:var(--accent); }
+#status { color:var(--muted); font-size:12px; margin-top:12px; }
+@media(max-width:480px) { body{padding:6px} .card{padding:18px 17px 14px;border-radius:15px} .footer{align-items:flex-start; flex-direction:column} }
+</style>
+</head>
+<body>
+<main class="card" aria-live="polite">
+  <div class="eyebrow"><span class="dot"></span> Tu curiosidad diaria</div>
+  <h1>Hoy puedes aprender algo nuevo.</h1>
+  <p id="description">Una pequeña ventana al conocimiento.</p>
+  <p id="fact">Buscando la curiosidad de hoy…</p>
+  <div class="footer">
+    <span id="date"></span>
+    <span>Contenido de <a id="source" href="https://es.wikipedia.org/" target="_blank" rel="noopener">Wikipedia en español</a></span>
+    <button id="refresh" type="button">Volver a cargar</button>
+  </div>
+  <div id="status" role="status"></div>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid' }).format(new Date());
+  $('date').textContent = new Intl.DateTimeFormat('es-ES', {
+    timeZone: 'Europe/Madrid', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  }).format(new Date());
+
+  const key = 'mi-vida-curiosidad-' + today;
+  const render = (item) => {
+    $('fact').textContent = item.extract || 'Hoy no se ha podido obtener un resumen.';
+    $('description').textContent = item.description || 'Un dato para alimentar la curiosidad.';
+    $('source').textContent = 'Wikipedia: ' + (item.title || 'fuente');
+    $('source').href = item.url || 'https://es.wikipedia.org/';
+    $('status').textContent = 'Esta curiosidad se mantiene durante todo el día.';
+  };
+
+  async function load(force = false) {
+    $('status').textContent = 'Buscando una curiosidad…';
+    if (!force) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(key) || 'null');
+        if (saved && saved.extract) { render(saved); return; }
+      } catch (_) {}
+    }
+    try {
+      const response = await fetch('https://es.wikipedia.org/api/rest_v1/page/random/summary', {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const data = await response.json();
+      if (!data.extract || data.type === 'disambiguation') throw new Error('Resumen no disponible');
+      const item = {
+        title: data.title,
+        description: data.description || '',
+        extract: data.extract,
+        url: data.content_urls?.desktop?.page || 'https://es.wikipedia.org/'
+      };
+      localStorage.setItem(key, JSON.stringify(item));
+      render(item);
+    } catch (error) {
+      $('fact').textContent = 'No se ha podido cargar el dato ahora mismo. Comprueba la conexión o vuelve a intentarlo.';
+      $('description').textContent = 'La curiosidad diaria necesita conexión a Internet.';
+      $('status').textContent = 'Si el problema continúa, vuelve a abrir la página más tarde.';
+    }
+  }
+  $('refresh').addEventListener('click', () => load(true));
+  load(false);
+})();
+</script>
+</body>
+</html>
